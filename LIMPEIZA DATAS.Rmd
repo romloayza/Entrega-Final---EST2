@@ -1,0 +1,498 @@
+#importar datas
+```{r}
+library(rio)
+library(dplyr)
+enaho_vivienda = import("enaho_carac_vivienda.csv")
+```
+
+```{r}
+str(enaho_vivienda$P110C) #Tiene acceso a agua todos los días 1 - Sí / 2 - No / 9 - NAs
+```
+```{r}
+table(enaho_vivienda$P110C)
+```
+```{r}
+vivienda = select(enaho_vivienda, UBIGEO, VIVIENDA, P110C, P1121)
+```
+
+```{r}
+vivienda <- vivienda[complete.cases(vivienda), ]
+```
+
+```{r}
+vivienda <- vivienda %>%
+  rename(viv_agua= P110C)
+```
+
+```{r}
+vivienda <- vivienda %>%
+  rename(viv_elec= P1121)
+```
+
+```{r}
+vivienda <- vivienda %>%
+  group_by(UBIGEO) %>%
+  summarise(
+    agua_si = sum(viv_agua == 1),
+    agua_no = sum(viv_agua == 2),
+    elec_si = sum(viv_elec == 1),
+    elec_no = sum(viv_elec == 0),
+    agua_total = agua_si + agua_no,
+    elec_total = elec_si + elec_no
+  )
+```
+
+
+```{r}
+vivienda$UBIGEO <- sprintf("%06d", as.integer(vivienda$UBIGEO))
+```
+
+# UBIGEOS
+
+```{r}
+ubigeos = import("ubigeos_inei_2022.xlsx")
+```
+
+```{r}
+library(dplyr)
+ubigeos = select(ubigeos, IDDIST, NOMBDEP, NOMBPROV, NOMBDIST)
+```
+
+```{r}
+ubigeos <- ubigeos %>%
+  rename(UBIGEO= IDDIST)
+```
+
+```{r}
+dfviv <- merge(vivienda, ubigeos, by = "UBIGEO")
+```
+
+```{r}
+prov_vivienda <- dfviv %>%
+  group_by(NOMBPROV) %>%
+  summarise(
+    agua_si = sum(agua_si, na.rm = TRUE),
+    agua_no = sum(agua_no, na.rm = TRUE),
+    elec_si = sum(elec_si, na.rm = TRUE),
+    elec_no = sum(elec_no, na.rm = TRUE),
+    agua_total = sum(agua_total, na.rm = TRUE),
+    elec_total = sum(elec_total, na.rm = TRUE)
+  )
+```
+
+```{r}
+dep_vivienda <- dfviv %>%
+  group_by(NOMBDEP) %>%
+  summarise(
+    agua_si = sum(agua_si, na.rm = TRUE),
+    agua_no = sum(agua_no, na.rm = TRUE),
+    elec_si = sum(elec_si, na.rm = TRUE),
+    elec_no = sum(elec_no, na.rm = TRUE),
+    agua_total = sum(agua_total, na.rm = TRUE),
+    elec_total = sum(elec_total, na.rm = TRUE)
+  )
+```
+
+```{r}
+prov_vivienda$tasa_agua <- (prov_vivienda$agua_si / prov_vivienda$agua_total) * 3
+```
+
+```{r}
+prov_vivienda$tasa_elec <- (prov_vivienda$elec_si / prov_vivienda$elec_total) * 3
+```
+*Tasa por provincia de las viviendas que no tienen internet por cada 4 casas
+
+```{r}
+dep_vivienda$tasa_agua <- (dep_vivienda$agua_si / dep_vivienda$agua_total) * 100
+```
+
+```{r}
+dep_vivienda$tasa_elec <- (dep_vivienda$elec_si / dep_vivienda$elec_total) * 100
+```
+* Tasa de viviendas que no tienen internet por cada 5 viviendas
+
+#Enaho edu
+
+```{r}
+enahoedu = import("enaho_edu.csv")
+```
+```{r}
+library(dplyr)
+educacion = select(enahoedu, UBIGEO, VIVIENDA, P302, P308D, P308B1, P308B2, P308B3, P308B4, P308B5, P208A)
+#P302 -> Sabe leer o escribir
+#P308A -> Grado de estudio ( solo se cuenta 2 y 3)
+#Calidad educativa
+#P308B1 -> Calidad Infraestructura
+#P308B2 -> Calidad Equipamiento
+#P308B3 -> CALIDAD ENSEÑANZA
+#P308B4 -> Calidad materiales educativos
+#P308B5 -> Particip Padres
+#P208A -> EDAD
+```
+
+```{r}
+educacion <- educacion[complete.cases(educacion), ]
+```
+
+```{r}
+str(educacion)
+```
+```{r}
+educacion <- educacion[educacion$P208A >= 6 & educacion$P208A <= 17, ]
+```
+
+```{r}
+educacion <- educacion %>%
+  rename(edu_leer= P302,
+         edu_grado= P308D,
+         cedu_infra = P308B1,
+         cedu_equipo= P308B2,
+         cedu_ensenanza = P308B3,
+         cedu_material = P308B4,
+         cedu_partpadres = P308B5,
+         Edad= P208A)
+```
+
+#Modificar Variables (CEDU)
+1. Muy Malo
+2. Malo
+3. Bueno
+4. Muy Bueno
+5. No sabe
+## Modo de operacionalización
+1, 2 y 5 --> Serán 0
+3 y 4 --> Serán 1
+
+```{r}
+educacion[c("cedu_infra", "cedu_equipo", "cedu_ensenanza", "cedu_material", "cedu_partpadres")] <- lapply(educacion[c("cedu_infra", "cedu_equipo", "cedu_ensenanza", "cedu_material", "cedu_partpadres")], function(x) {
+  x[x %in% c(1, 2, 5)] <- 0
+  x[x %in% c(3, 4)] <- 1
+  return(x)
+})
+```
+
+```{r}
+table(educacion$edu_grado)
+table(educacion$edu_leer)
+```
+#Obtener un aproximado de los niños y adolescentres de 6 a 17 años que saben leer (%)
+```{r}
+educacion[c("edu_leer")] <- lapply(educacion[c("edu_leer")], function(x) {
+  x[x %in% c(2)] <- 0
+  x[x %in% c(1)] <- 100
+  return(x)
+})
+```
+
+
+
+```{r}
+educacion <- educacion %>%
+  group_by(UBIGEO) %>%
+  summarise(
+    edu_leer = mean(edu_leer, na.rm = TRUE),
+    cedu_infra = mean(cedu_infra, na.rm = TRUE),
+    cedu_equipo = mean(cedu_equipo, na.rm = TRUE),
+    cedu_ensenanza = mean(cedu_ensenanza, na.rm = TRUE),
+    cedu_material = mean(cedu_material, na.rm = TRUE),
+    cedu_partpadres = mean(cedu_partpadres, na.rm = TRUE),
+    edu_grado = n(), 
+    edad = n()
+  )
+```
+
+```{r}
+educacion$UBIGEO <- sprintf("%06d", as.integer(educacion$UBIGEO))
+```
+
+#Añadiendo nombres de distrito, provincia y departamento
+```{r}
+dfedu <- merge(educacion, ubigeos, by = "UBIGEO")
+```
+
+```{r}
+str(dfedu)
+```
+
+
+```{r}
+prov_edu <- dfedu %>%
+  group_by(NOMBPROV) %>%
+  summarise(
+    edu_leer = mean(edu_leer, na.rm = TRUE),
+    cedu_infra = mean(cedu_infra, na.rm = TRUE),
+    cedu_equipo = mean(cedu_equipo, na.rm = TRUE),
+    cedu_ensenanza = mean(cedu_ensenanza, na.rm = TRUE),
+    cedu_material = mean(cedu_material, na.rm = TRUE),
+    cedu_partpadres = mean(cedu_partpadres, na.rm = TRUE),
+    cant_edu = sum(edu_grado, na.rm = TRUE), 
+  )
+```
+
+```{r}
+dep_edu <- dfedu %>%
+  group_by(NOMBDEP) %>%
+  summarise(
+    edu_leer = mean(edu_leer, na.rm = TRUE),
+    cedu_infra = mean(cedu_infra, na.rm = TRUE),
+    cedu_equipo = mean(cedu_equipo, na.rm = TRUE),
+    cedu_ensenanza = mean(cedu_ensenanza, na.rm = TRUE),
+    cedu_material = mean(cedu_material, na.rm = TRUE),
+    cedu_partpadres = mean(cedu_partpadres, na.rm = TRUE),
+    cant_edu = sum(edu_grado, na.rm = TRUE), 
+  )
+```
+
+# INTERNET
+```{r}
+library(rio)
+inter = import("internet_data.csv")
+```
+
+```{r}
+calcular_moda <- function(x) {
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+``` 
+
+```{r}
+inter <- inter[complete.cases(inter), ]
+dfinternet <- inter %>%
+  group_by(UBIGEO) %>%
+  summarise(
+    internet_si = sum(INTERNET == 1),
+    internet_no = sum(INTERNET == 2),
+    celinter_si = sum(INTERNET_CELULAR == 1),
+    celinter_no = sum(INTERNET_CELULAR == 2),
+    internet_total = internet_si + internet_no,
+    celinter_total = celinter_si + celinter_no
+  )
+```
+
+```{r}
+dfinternet$UBIGEO <- sprintf("%06d", as.integer(dfinternet$UBIGEO))
+```
+
+
+```{r}
+dfinternet <- merge(dfinternet, ubigeos, by = "UBIGEO")
+```
+
+```{r}
+prov_inter <- dfinternet %>%
+  group_by(NOMBPROV) %>%
+  summarise(
+    internet_si = sum(internet_si, na.rm = TRUE),
+    internet_no = sum(internet_no, na.rm = TRUE),
+    celinter_si = sum(celinter_si, na.rm = TRUE),
+    celinter_no = sum(celinter_no, na.rm = TRUE),
+    internet_total = sum(internet_total, na.rm = TRUE),
+    celinter_total = sum(celinter_total, na.rm = TRUE)
+  )
+```
+
+```{r}
+dep_inter <- dfinternet %>%
+  group_by(NOMBDEP) %>%
+  summarise(
+    internet_si = sum(internet_si, na.rm = TRUE),
+    internet_no = sum(internet_no, na.rm = TRUE),
+    celinter_si = sum(celinter_si, na.rm = TRUE),
+    celinter_no = sum(celinter_no, na.rm = TRUE),
+    internet_total = sum(internet_total, na.rm = TRUE),
+    celinter_total = sum(celinter_total, na.rm = TRUE)
+  )
+```
+
+```{r}
+prov_inter$tasa_internet <- (prov_inter$internet_si / prov_inter$internet_total) * 3
+```
+
+```{r}
+prov_inter$tasa_celinter <- (prov_inter$celinter_si / prov_inter$celinter_total) * 3
+```
+*Tasa por provincia de las viviendas que no tienen internet por cada 4 casas
+
+```{r}
+dep_inter$tasa_internet <- (dep_inter$internet_si / dep_inter$internet_total) * 100
+```
+
+```{r}
+dep_inter$tasa_celinter <- (dep_inter$celinter_si / dep_inter$celinter_total) * 100
+```
+* Tasa de viviendas que no tienen internet por cada 5 viviendas
+
+#LECTURA
+```{r}
+library(rio)
+leyeron= import("Capítulo 500-Prácticas Lectoras edad 0-17.csv")
+```
+
+```{r}
+library(dplyr)
+leyeron = select(leyeron, UBIGEO, P506, P513A, P504_A, P201, ESTRATOSOCIO)
+```
+
+```{r}
+# Calcular el número de NAs por columna
+encontrar_cagon <- sapply(leyeron, function(x) sum(is.na(x)))
+print(encontrar_cagon)
+``` 
+```{r}
+leyeron <- leyeron[complete.cases(leyeron), ]
+```
+
+```{r}
+str(leyeron)
+```
+
+#P506 -> LEE LIBROS (1:9)
+#P513A -> IDIOMA
+#P504_A -> EDAD
+#P201 -> PERS_NRO
+#ESTRATO_SOCIO
+
+
+```{r}
+colnames(leyeron)[colnames(leyeron) == "P506"] <- "PRACTICA_LECTURA"
+```
+
+```{r}
+colnames(leyeron)[colnames(leyeron) == "P513A"] <- "IDIOMA"
+```
+
+```{r}
+colnames(leyeron)[colnames(leyeron) == "P504_A"] <- "EDAD"
+```
+
+```{r}
+colnames(leyeron)[colnames(leyeron) == "P201"] <- "PERS_NRO"
+```
+
+```{r}
+leyeron[c("PRACTICA_LECTURA")] <- lapply(leyeron[c("PRACTICA_LECTURA")], function(x) {
+  x[x %in% c(3, 4, 5, 6, 7, 8, 9)] <- 0
+  x[x %in% c(1, 2)] <- 1
+  return(x)
+})
+```
+
+```{r}
+leyeron[c("ESTRATOSOCIO")] <- lapply(leyeron[c("ESTRATOSOCIO")], function(x) {
+  x[x %in% c(5, 6, 4)] <- 0
+  x[x %in% c(1, 2, 3)] <- 100
+  return(x)
+})
+```
+
+```{r}
+str(leyeron)
+```
+
+```{r}
+dflectura <- leyeron %>%
+  group_by(UBIGEO) %>%
+  summarise(
+    leen_si = sum(PRACTICA_LECTURA == 1),
+    leen_no = sum(PRACTICA_LECTURA == 0),
+    leen_total = leen_si + leen_no,
+    PERS_NRO = mean(PERS_NRO, na.rm = TRUE),
+    IDIOMA = calcular_moda(IDIOMA)
+  )
+```
+
+```{r}
+dflectura$UBIGEO <- sprintf("%06d", as.integer(dflectura$UBIGEO))
+```
+
+```{r}
+dflectura <- merge(dflectura, ubigeos, by = "UBIGEO")
+```
+
+```{r}
+prov_leer <- dflectura %>%
+  group_by(NOMBPROV) %>%
+  summarise(
+    IDIOMA = calcular_moda(IDIOMA),
+    PERS_NRO = mean(PERS_NRO, na.rm = TRUE),
+    leen_si = sum(leen_si, na.rm = TRUE),
+    leen_no = sum(leen_no, na.rm = TRUE),
+    leen_total = sum(leen_total, na.rm = TRUE)
+  )
+```
+
+```{r}
+dep_leer <- dflectura %>%
+  group_by(NOMBDEP) %>%
+  summarise(
+    IDIOMA = calcular_moda(IDIOMA),
+    PERS_NRO = mean(PERS_NRO, na.rm = TRUE),
+    leen_si = sum(leen_si, na.rm = TRUE),
+    leen_no = sum(leen_no, na.rm = TRUE),
+    leen_total = sum(leen_total, na.rm = TRUE)
+  )
+```
+
+```{r}
+prov_leer$tasa_leer <- (prov_leer$leen_si / prov_leer$leen_total) * 3
+```
+
+```{r}
+dep_leer$tasa_leer <- (dep_leer$leen_si / dep_leer$leen_total) * 100
+```
+*Tasa de personas que leen por cada 4 personas
+
+# UNIR DATAS
+```{r}
+# Lista de dataframes
+lista_depa <- list(dep_edu, dep_inter, dep_leer, dep_vivienda)
+
+# Mergear los dataframes usando reduce y full_join
+df_total_departamento <- Reduce(function(x, y) full_join(x, y, by = "NOMBDEP"), lista_depa)
+```
+
+```{r}
+# Lista de dataframes
+lista_prov <- list(prov_edu, prov_inter, prov_leer, prov_vivienda)
+
+# Mergear los dataframes usando reduce y full_join
+df_total_provincia <- Reduce(function(x, y) full_join(x, y, by = "NOMBPROV"), lista_prov)
+```
+
+
+#UBIGEO POR DEPARTAMENTO
+```{r}
+ubigeos$ubidepa <- as.numeric(substr(as.character(ubigeos$UBIGEO), 1, 2))
+```
+
+```{r}
+ubigeos$ubidepa <- sprintf("%02d", as.integer(ubigeos$ubidepa))
+```
+
+```{r}
+ubidepas <- ubigeos %>%
+  group_by(NOMBDEP) %>%
+  summarise(
+    UBIGEO = calcular_moda(ubidepa)
+  )
+```
+
+```{r}
+ubidepas <- ubidepas[complete.cases(ubidepas), ]
+```
+
+```{r}
+df_total_departamento <- merge(df_total_departamento, ubidepas, by = "NOMBDEP", all = TRUE)
+```
+
+#Exportar datas
+
+```{r}
+export(df_total_departamento, "depatasa_total.csv") 
+export(df_total_provincia, "provtasa_total.csv") 
+```
+
+
+
+

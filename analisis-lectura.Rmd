@@ -1,0 +1,988 @@
+
+
+# 0. Cargar data
+=====================================   
+
+```{r}
+library(flexdashboard)
+library(rio)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+library(tidyverse)
+library(modelsummary)
+library(kableExtra)
+library(cluster)
+library(sf)
+data = import ("provtasa_total.csv")
+dataDep = import("depatasa_total.csv")
+```
+
+```{r}
+data <- data[complete.cases(data), ]
+```
+
+-------------------------------------------------------------------------------------------------------
+```{r}
+library(sf) 
+mapDEP=sf::read_sf("DEPARTAMENTO.shp")
+head(mapDEP) #Veamos la geometría:
+```
+
+```{r}
+mapDEP2 <- merge(mapDEP, dataDep, by.x = 'DEPARTAMEN', by.y = 'NOMBDEP', all.x = TRUE)
+```
+
+
+
+# 1. Mapa de la Variable DEPENDIENTE
+=====================================   
+
+
+# La práctica de lectura a nivel nacional
+```{r}
+# Crear el mapa con ajustes
+mapa_lectura <- ggplot(mapDEP2) +
+  geom_sf(aes(fill = tasa_leer), color = "gray") +  # Mapea la variable tasa_leer al relleno del mapa
+  scale_fill_gradient(low = "#edf8fb", high = "#08306b", na.value = "gray", 
+                      breaks = seq(0, 100, by = 10)) +  # Escala de colores y valores para la tasa de lectura
+  labs(
+    fill = "Tasa de Lectura",
+    title = "Práctica de lectura a nivel nacional",
+    subtitle = "Según el censo de lectura realizado por el INEI",
+    caption = "Fuente: INEI \nElaborado por: Yhara y Romina"
+  ) +
+  theme_minimal() +  # Tema minimalista
+  theme(
+    plot.title = element_text(color = "black", size = 16, face = "bold", hjust = 0.5),  # Tamaño más pequeño para el título
+    plot.subtitle = element_text(color = "black", size = 12, hjust = 0.5),  # Tamaño más pequeño para el subtítulo
+    plot.caption = element_text(color = "black", size = 10),  # Tamaño más pequeño para el pie de página
+    legend.position = "right",  # Coloca la leyenda a la derecha
+    legend.title = element_text(size = 12, face = "bold"),  # Tamaño más pequeño para el título de la leyenda
+    legend.text = element_text(size = 10),  # Tamaño más pequeño para el texto de la leyenda
+    axis.title = element_blank(),  # Elimina los títulos de los ejes
+    axis.text = element_blank(),  # Elimina los textos de los ejes
+    axis.ticks = element_blank()  # Elimina las marcas de los ejes
+  ) +
+  theme(panel.background = element_blank())  # Hace el fondo del panel blanco
+
+# Mostrar el mapa
+print(mapa_lectura)
+```
+
+
+
+- Tabla descriptiva de la varible tasa de lectura
+
+```{r}
+print("Descriptivo de la variable tasa de lectura")
+print(summary(data$tasa_leer))
+```
+
+
+
+## 2. Variables Independientes 
+=====================================   
+
+
+
+### Tasa de niños y adolescentes con acceso a Internet
+
+```{r}
+# Calcular estadísticas descriptivas específicas para tu variable
+mean_tasa_celinternet <- mean(data$tasa_celinter, na.rm = TRUE)
+sd_tasa_celinternet <- sd(data$tasa_celinter, na.rm = TRUE)
+```
+
+```{r}
+# Crear el histograma con densidad normal superpuesta
+ggplot(data = data, aes(x = tasa_celinter)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 10, color = "black", fill = "white") +
+  stat_function(fun = dnorm, args = list(mean = mean_tasa_celinternet, sd = sd_tasa_celinternet), color = "red") +
+  labs(
+    title = "Tasa de viviendas\na que cuentan con acceso a internet",
+    x = "Tasa internet",
+    y = "Densidad",
+    caption = "Fuente: INEI"
+  ) +
+  theme_minimal()
+```
+
+### Tasa de niños y adolescentes con acceso a Internet desde un celular móvil
+
+```{r}
+# Calcular estadísticas descriptivas específicas para tu variable
+mean_tasa_internet <- mean(data$tasa_internet, na.rm = TRUE)
+sd_tasa_internet <- sd(data$tasa_internet, na.rm = TRUE)
+```
+
+```{r}
+# Crear el histograma con densidad normal superpuesta
+ggplot(data = data, aes(x = tasa_internet)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 10, color = "black", fill = "white") +
+  stat_function(fun = dnorm, args = list(mean = mean_tasa_internet, sd = sd_tasa_internet), color = "red") +
+  labs(
+    title = "Tasa de viviendas que cuentan con acceso a internet\na desde un celular mvil",
+    x = "Tasa Internet desde un celular",
+    y = "Densidad",
+    caption = "Fuente: INEI"
+  ) +
+  theme_minimal()
+```
+
+### Tasa de niños y adolescentes cuentan con electricidad en su vivienda
+
+```{r}
+# Calcular estadísticas descriptivas específicas para tu variable
+mean_tasa_elec <- mean(data$tasa_elec, na.rm = TRUE)
+sd_tasa_elec <- sd(data$tasa_elec, na.rm = TRUE)
+```
+
+```{r}
+# Crear el histograma con densidad normal superpuesta
+ggplot(data = data, aes(x = tasa_elec)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 10, color = "black", fill = "white") +
+  stat_function(fun = dnorm, args = list(mean = mean_tasa_elec, sd = sd_tasa_elec), color = "red") +
+  labs(
+    title = "Tasa de viviendas\na que cuentan con electricidad",
+    x = "tasa electricida",
+    y = "Densidad",
+    caption = "Fuente: INEI"
+  ) +
+  theme_minimal()
+```
+
+### Tasa de niños y adolescentes cuentan con agua en su vivienda
+
+```{r}
+# Calcular estadísticas descriptivas específicas para tu variable
+mean_tasa_agua <- mean(data$tasa_agua, na.rm = TRUE)
+sd_tasa_agua <- sd(data$tasa_agua, na.rm = TRUE)
+```
+
+```{r}
+# Crear el histograma con densidad normal superpuesta
+ggplot(data = data, aes(x = tasa_agua)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 10, color = "black", fill = "white") +
+  stat_function(fun = dnorm, args = list(mean = mean_tasa_agua, sd = sd_tasa_agua), color = "red") +
+  labs(
+    title = "Tasa de viviendas\na que cuentan con agua",
+    x = "tasa agua",
+    y = "Densidad",
+    caption = "Fuente: INEI"
+  ) +
+  theme_minimal()
+```
+
+
+### CEDU
+
+```{r}
+# Crear el gráfico boxplot con ggplot2
+ggplot(data, aes(x = factor(1), y = cedu_infra)) +
+  geom_boxplot(fill = "lightblue", color = "darkblue") +
+  geom_boxplot(aes(x = factor(2), y = cedu_equipo), fill = "lightgreen", color = "darkgreen") +
+  geom_boxplot(aes(x = factor(3), y = cedu_ensenanza), fill = "lightyellow", color = "orange") +
+  geom_boxplot(aes(x = factor(4), y = cedu_material), fill = "lightpink", color = "red") +
+  geom_boxplot(aes(x = factor(5), y = cedu_partpadres), fill = "lightcyan", color = "darkblue") +
+  labs(
+    title = "Comparación de Variables CEDU",
+    x = "Variables CEDU",
+    y = "Valores",
+    caption = "Fuente: INEI"
+  ) +
+  scale_x_discrete(labels = c("Cedu Infra", "Cedu Equipo", "Cedu Enseñanza", "Cedu Material", "Cedu Parte Padres")) +
+  theme_minimal()
+```
+
+
+> ¿Qué son las CEDUS?
+
+CEDU es la abreviatura de Calidad EDUcativa, estas fueron recolectadas de la Encuesta Nacional de Hogares del año 2022. 
+
+- CEDU INFRA → Percepción de la calidad de infraestructura en los centros educativos (techo, paredes, etc)
+
+- CEDU EQUIPO → Percepción de la calidad del equipamiento en los centros educativos (carpetas, pizarras, sillas, etc)
+
+- CEDU ENSEÑANZA → Percepción de la calidad de los maestros en los centros educativos
+
+- CEDU PARTICIPACIÓN PADRES→ Percepción de la calidad de los mecanismos para la participación de los padres de familia en las instituciones 
+educativas
+
+- CEDU  MATERIAL → Percepción de la calidad del material educativo de las instituciones educativas (libros, planes lectores, etc)
+
+
+
+
+# 3. Análisis Factorial de CEDU
+=====================================   
+
+
+### Correlación entre variables para posible índice:
+
+``````{r}
+# Buscar columnas que contienen la palabra "cedu"
+cedu_index = grep('cedu', names(data))
+
+# Seleccionar las columnas que contienen la palabra "cedu"
+cedu_data = data[, cedu_index]
+```
+
+```{r}
+# usaremos:
+library(magrittr)
+head(cedu_data,10)%>%
+    rmarkdown::paged_table()
+```
+
+```{r}
+library(magrittr)
+library(polycor)
+corMatrix=polycor::hetcor(cedu_data)$correlations
+round(corMatrix,2)
+```
+
+```{r}
+library(ggcorrplot)
+ggcorrplot(corMatrix)
+```
+
+
+### Índices KMO y Overall MSA:
+
+```{r}
+library(psych)
+psych::KMO(corMatrix)
+```
+
+0.70 a 0.79: Moderadamente adecuado.
+0.60 a 0.69: Mediocre
+
+--> está maso 
+
+
+### Resultados Pruebas
+
+¿Es matriz de identidad?
+```{r}
+cortest.bartlett(corMatrix,n=nrow(cedu_data))$p.value>0.05
+```
+
+¿Es una matriz singular?
+```{r}
+library(matrixcalc)
+is.singular.matrix(corMatrix)
+```
+
+
+### Resultado del Análisis Factorial 
+
+```{r}
+fa.parallel(cedu_data, fa = 'fa',correct = T,plot = F)
+```
+
+```{r}
+#Colocamos el NUMERO que nos dio el codigo anterior
+library(GPArotation)
+resfa <- fa(cedu_data,
+            nfactors = 2,
+            cor = 'mixed',
+            rotate = "oblimin", 
+            fm="minres")
+print(resfa$loadings)
+```
+
+
+```{r}
+fa.diagram(resfa,main = "Resultados del EFA")
+```
+
+```{r}
+as.data.frame(resfa$scores)%>%head()
+```
+
+```{r}
+data$indice_1_cedu=resfa$scores[,1]
+data$indice_2_cedu=resfa$scores[,2]
+```
+
+
+
+# 4. Correlaciones con la variable central Y PRUEBAS PEARSON O SPEARMAN
+==============================================
+- Normalidad: Shapiro-Wilk
+
+Esto indicaría que se RECHAZA la hipótesis nula de normalidad, ya que el valor p (5.241e-10) es MENOR que 0.05 --> NO SIGUEN UNA DISTRIBUCIÓN NORMAL
+
+
+>>> Cuando se realiza una prueba de normalidad como la prueba de Shapiro-Wilk o la prueba de Kolmogorov-Smirnov, el resultado que obtienes es un valor p. Aquí te explico cómo interpretar este resultado:
+--------------------------------------------------------------------------------
+NORMAL - pearson
+
+- Valor p alto (> 0.05): No tienes suficiente evidencia para rechazar la hipótesis nula. En términos prácticos, esto sugiere que los datos podrían provenir de una distribución normal.
+
+-----------------------------------------------------------------------------------
+NO NORMAL - spearman
+
+- Valor p bajo (< 0.05): Tienes suficiente evidencia para rechazar la hipótesis nula. Esto sugiere que los datos probablemente no siguen una distribución normal.
+------------------------------------------------------------------------------
+
+- Spearman:
+Correlación (cor o rho):
+
+Valor cercano a 1 o -1: Indica una fuerte correlación (positiva o negativa).
+Valor cercano a 0: Indica poca o ninguna correlación.
+
+Valor P (p.value):
+
+Valor p bajo (típicamente < 0.05): Indica que la correlación es significativa.
+Valor p alto: Indica que no hay suficiente evidencia para decir que hay una correlación significativa.
+
+- Pearson:
+
+Débil (0.1 a 0.3): Existe una relación pequeña o débil entre las variables.
+Moderada (0.3 a 0.5): Existe una relación media o moderada entre las variables.
+Fuerte (0.5 en adelante): Existe una relación grande o fuerte entre las variables.
+
+------------------------------------------------------------------------------
+
+
+```{r}
+#Prueba de correlación
+#cor.test(data$tasa_leer, data$indice_1_cedu)
+```
+
+pearsonf1=cor.test(f1,data=EstPea)[c('estimate','p.value')]
+pearsonf1
+
+spearmanf1=cor.test(f1,data=EstPea,method='spearman',exact=F)[c('estimate','p.value')]
+spearmanf1
+
+
+### Correlación con vivienda con acceso a internet
+
+```{r}
+data$tasa_internet_SI <- (data$internet_si / data$internet_total) * 3
+```
+
+```{r}
+ggplot(data, aes(x=tasa_leer, y=tasa_internet_SI)) +
+  geom_point(colour="darkblue") +  xlab("tasa de lectura a nivel provincial") +  ylab("tasa internet si") +
+  ggtitle("Relación entre la tasa de lectura y tasa internet") +
+  theme_light()+ geom_smooth(method=lm,se=F)
+```
+### Prubeba de normalidad 
+
+```{r}
+# Realizar la prueba de Shapiro-Wilk y almacenar el resultado
+shapiro_result <- shapiro.test(data$tasa_internet_SI)
+
+# Imprimir el resultado
+print(shapiro_result)
+```
+```{r}
+cor_tasa_internet <- cor.test(data$tasa_leer, data$tasa_internet, method = "spearman")
+# Mostrar los resultados
+print(cor_tasa_internet)
+```
+--> 0.03 --> MUY BIEN,  MENOR A 0.05
+
+
+
+### Correlación con vivienda con acceso internet desde un celular
+
+```{r}
+data$tasa_celinter_SI <- (data$celinter_si / data$celinter_total) * 3
+```
+
+```{r}
+ggplot(data, aes(x=tasa_leer, y=tasa_celinter_SI)) +
+  geom_point(colour="darkgreen") +  xlab("tasa de lectura a nivel provincial") +  ylab("tasa internet celular") +
+  ggtitle("Relación entre la tasa de lectura y la tasa internet celular") +
+  theme_light()+ geom_smooth(method=lm,se=F)
+```
+
+```{r}
+# Realizar la prueba de Shapiro-Wilk y almacenar el resultado
+shapiro_result2 <- shapiro.test(data$tasa_celinter_SI)
+
+# Imprimir el resultado
+print(shapiro_result2)
+```
+
+--> normal, pues es MAYOR a 0.05
+
+```{r}
+#Prueba de correlación
+cor.test(data$tasa_leer, data$tasa_celinter_SI)
+```
+- Bajaaa 0.108
+
+
+
+### Correlación con vivienda con acceso a electricidad 
+
+```{r}
+data$tasa_elec_SI <- (data$elec_si / data$elec_total) * 10
+```
+
+
+```{r}
+ggplot(data, aes(x=tasa_leer, y=tasa_elec_SI)) +
+  geom_point(colour="orange") +  xlab("tasa de lectura a nivel provincial") +  ylab("tasa electricidad") +
+  ggtitle("Relación entre la tasa de lectura y tasa electricidad") +
+  theme_light()+ geom_smooth(method=lm,se=F)
+```
+```{r}
+# Realizar la prueba de Shapiro-Wilk y almacenar el resultado
+shapiro_result3 <- shapiro.test(data$elec_si)
+
+# Imprimir el resultado
+print(shapiro_result3)
+```
+--> NO normal, Spearman
+
+
+```{r}
+cor_tasa_electricidad <- cor.test(data$tasa_leer, data$elec_si, method = "spearman")
+
+# Mostrar los resultados
+print(cor_tasa_electricidad)
+```
+--> significativooo, MENOR a 0.05
+
+
+
+### Correlación con vivienda con acceso a agua
+
+```{r}
+data$tasa_agua_SI <- (data$agua_si / data$agua_total) * 10
+```
+
+```{r}
+ggplot(data, aes(x=tasa_leer, y=tasa_agua_SI)) +
+  geom_point(colour="skyblue") +  xlab("tasa de lectura a nivel provincial") +  ylab("tasa agua") +
+  ggtitle("Relación entre la tasa de lectura y tasa agua") +
+  theme_light()+ geom_smooth(method=lm,se=F)
+```
+
+
+```{r}
+# Realizar la prueba de Shapiro-Wilk y almacenar el resultado
+shapiro_result4 <- shapiro.test(data$agua_si)
+
+# Imprimir el resultado
+print(shapiro_result4)
+```
+--> NO, normal
+
+
+```{r}
+cor_tasa_agua <- cor.test(data$tasa_leer, data$agua_si, method = "spearman")
+
+# Mostrar los resultados
+print(cor_tasa_agua)
+```
+--> significante menor a 0.05
+
+
+
+### Correlación con el índice 1
+
+```{r}
+ggplot(data, aes(x=tasa_leer, y=indice_1_cedu)) +
+  geom_point(colour="darkgray") +  xlab("tasa de lectura a nivel provincial") +  ylab("Índice 1 - Cedu") +
+  ggtitle("Relación entre la tasa de lectura e Índice 1 Cedu") +
+  theme_light()+ geom_smooth(method=lm,se=F)
+```
+
+
+
+```{r}
+# Realizar la prueba de Shapiro-Wilk y almacenar el resultado
+shapiro_result5 <- shapiro.test(data$indice_1_cedu)
+
+# Imprimir el resultado
+print(shapiro_result5)
+```
+NO, normal 
+
+
+```{r}
+cor_tasa_indice_1 <- cor.test(data$tasa_leer, data$indice_1_cedu, method = "spearman")
+
+# Mostrar los resultados
+print(cor_tasa_indice_1)
+```
+--> NO, significantes, pero cerca
+
+
+
+### Correlación con el Índice 2
+
+```{r}
+ggplot(data, aes(x=tasa_leer, y=indice_2_cedu)) +
+  geom_point(colour="purple") +  xlab("tasa de lectura a nivel provincial") +  ylab("Índice 2 - Cedu") +
+  ggtitle("Relación entre la tasa de lectura e Índice 2 Cedu") +
+  theme_light()+ geom_smooth(method=lm,se=F)
+```
+
+
+```{r}
+# Realizar la prueba de Shapiro-Wilk y almacenar el resultado
+shapiro_result6 <- shapiro.test(data$indice_2_cedu)
+
+# Imprimir el resultado
+print(shapiro_result6)
+```
+
+NO, normal 
+
+```{r}
+cor_tasa_indice_2 <- cor.test(data$tasa_leer, data$indice_2_cedu, method = "spearman")
+
+# Mostrar los resultados
+print(cor_tasa_indice_2)
+```
+Significante, menor a 0.05
+
+
+> Análisis 
+
+Las correlaciones bivariadas entre la "tasa de la práctica de lectura en los niños y adolescentes (de 6 a 17 años)" y las variables independientes se midieron utilizando la prueba de Pearson en todos los casos.
+
+- Tasa de Internet: Esta variable representa la tasa de viviendas con acceso a Internet. Tiene una relación positiva y significante, prueba Spearman, con p valor de 0.03.
+
+- Tasa de Internet móvil: Esta variable indica la tasa de viviendas con acceso a Internet desde un teléfono móvil. Posee una relación positiva y débil, con un coeficiente de Pearson de 0.1538.
+
+- Tasa de electricidad: Esta variable muestra la tasa de viviendas con acceso a electricidad. Tiene una relación positiva y signficativa, prueba Spearman y con p valor de 0.026.
+
+- Tasa de agua: Esta variable se refiere a la tasa de viviendas con acceso a agua potable desde una red pública. La relación es positiva relación positiva y signficativa, prueba Spearman y con p valor de 0.016.
+
+- Índice 2 CEDU: La relación entre esta variable y la práctica de lectura es positiva y signficativa, prueba Spearman y con p valor de 0.07.
+
+- Índice 1 CEDU: Se observa una relación positiva y signficativa, prueba Spearman y con p valor de 0.01.
+
+- IMPORTANTE: nos quedaremos con las más significativas y determinantes (a nuestro criterio) para realizar los modelos de regresión, que son: "tasa de Internet", "tasa de Internet móvil", "tasa de electricidad" e "Índice 1 CEDU".
+
+
+
+# 5. Regresiones 
+=====================================   
+
+
+### MODELO 1
+
+```{r}
+data2 <- data
+data2$tasa_leer <- as.integer(data2$tasa_leer)
+```
+
+```{r}
+library(modelsummary)
+h1 = formula(tasa_leer ~ indice_1_cedu + tasa_internet)
+
+rp1 = glm(h1, data = data2, 
+        offset = log(leen_total), #exposure 
+        family = poisson(link = "log"))
+
+h1=list('Apropiacion (I)'=rp1)
+modelsummary(h1, title = "Regresion: modelo 1",
+             stars = TRUE,
+             output = "kableExtra")
+```
+
+
+> over o under dispersión 
+
+```{r}
+library(magrittr)
+library(kableExtra)
+overdispersion=AER::dispersiontest(rp1,alternative='greater')$ p.value<0.05
+underdispersion=AER::dispersiontest(rp1,alternative='less')$ p.value<0.05
+# tabla
+testResult=as.data.frame(rbind(overdispersion,underdispersion))
+names(testResult)='Es probable?'
+testResult%>%kable(caption = "Test de Equidispersión")%>%kableExtra::kable_styling()
+```
+
+
+
+### MODELO 2 
+
+```{r}
+library(modelsummary)
+h2 = formula(tasa_leer ~ indice_1_cedu + tasa_internet + tasa_celinter + tasa_elec)
+
+rp2 = glm(h2, data = data2, 
+        offset = log(leen_total), #exposure 
+        family = poisson(link = "log"))
+
+h4=list('Apropiacion (II)'=rp2)
+modelsummary(h4, title = "Regresion: modelo 2",
+             stars = TRUE,
+             output = "kableExtra")
+```
+
+```{r}
+library(magrittr)
+library(kableExtra)
+overdispersion=AER::dispersiontest(rp2,alternative='greater')$ p.value<0.05
+underdispersion=AER::dispersiontest(rp2,alternative='less')$ p.value<0.05
+# tabla
+testResult=as.data.frame(rbind(overdispersion,underdispersion))
+names(testResult)='Es probable?'
+testResult%>%kable(caption = "Test de Equidispersión")%>%kableExtra::kable_styling()
+```
+
+
+### MODELO 3
+
+```{r}
+h3 = formula(tasa_leer ~tasa_internet + tasa_celinter + tasa_elec)
+
+rp3 = glm(h3, data = data2, 
+        offset = log(leen_total), #exposure 
+        family = poisson(link = "log"))
+
+h3=list('Apropiacion (III)'=rp3)
+modelsummary(h3, title = "Regresion: modelo 3",
+             stars = TRUE,
+             output = "kableExtra")
+```
+
+```{r}
+library(magrittr)
+library(kableExtra)
+overdispersion=AER::dispersiontest(rp3,alternative='greater')$ p.value<0.05
+underdispersion=AER::dispersiontest(rp3,alternative='less')$ p.value<0.05
+# tabla
+testResult=as.data.frame(rbind(overdispersion,underdispersion))
+names(testResult)='Es probable?'
+testResult%>%kable(caption = "Test de Equidispersión")%>%kableExtra::kable_styling()
+```
+
+
+### Comparación 
+
+```{r}
+formatoNum <- function(x) format(x, digits = 4, scientific = FALSE)
+models_total=list('Modelo 1'=rp1,
+                 'Modelo 2'=rp2,
+                 'Modelo 3'=rp3)
+
+modelsummary(models_total,fmt=formatoNum,
+             exponentiate = T, 
+             statistic = 'conf.int',
+             title = "EXP() del Modelo 1, Modelo 2 y Modelo2",
+             stars = TRUE,
+             output = "kableExtra")
+
+```
+
+
+
+### Tabla Chi- Cuadrado
+
+```{r}
+anova(rp1,rp2,rp3, test = "Chisq") %>%
+kable(caption = "Tabla ANOVA para comparar modelos")%>%kableExtra::kable_styling(full_width = FALSE)
+```
+
+
+
+# 6. Conglomerados 
+=====================================   
+
+### Dendograma en base a estragia de partición (AGNES)
+
+
+```{r}
+dataClus=data[,c("tasa_internet", "tasa_celinter", "tasa_elec", "tasa_leer")]
+row.names(dataClus)=data$NOMBPROV
+```
+
+```{r}
+library(cluster)
+g.dist = daisy(dataClus, metric="gower")
+```
+
+```{r}
+library(factoextra)
+
+## PARA JERARQUICO
+
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "agnes")
+```
+
+```{r}
+# en la K ponemos el numero que nos salio antes
+set.seed(123)
+library(factoextra)
+
+res.agnes<- hcut(g.dist, k = 3,hc_func='agnes',hc_method = "ward.D")
+dataClus$agnes=res.agnes$cluster
+
+# ver
+
+head(dataClus,15)%>%kbl()%>%kable_styling()
+```
+
+```{r}
+# Visualize
+fviz_dend(res.agnes, cex = 0.7, horiz = T,main = "")
+```
+
+
+### Silhouette 
+
+```{r}
+fviz_silhouette(res.agnes,print.summary = F)
+```
+
+```{r}
+silAGNES=data.frame(res.agnes$silinfo$widths)
+silAGNES$country=row.names(silAGNES)
+poorAGNES=silAGNES[silAGNES$sil_width<0,'country']%>%sort()
+poorAGNES
+```
+
+```{r}
+aggregate(.~ agnes, data=dataClus,mean)
+```
+
+```{r}
+data$agnes_provincia=data$NOMBPROV%in%poorAGNES
+data$agnes_provincia=as.ordered(dataClus$agnes)
+dataClus$agnes=NULL
+```
+
+________________________________________________________________________________________________________
+
+
+# POR SI ACASOOOO
+=================================
+
+
+### Regresión Gauss
+---------------------------
+
+- las regresiones serán ANIDADAS
+
+1. Con indice 1
+2. con tasa_internet
+3. tasa internet celular
+4. tasa electricidad
+
+
+# MODELO 1, con Indice 1
+
+```{r}
+# indice 1
+modelo1=formula(tasa_leer ~ indice_1_cedu)
+reg1=lm(modelo1,data=data)
+summary(reg1)
+```
+
+
+# MODELO 2: agregamos tasa internet (NO tienen)
+
+```{r}
+# indice 1 + tasa ineternet
+modelo2=formula(tasa_leer ~ indice_1_cedu + tasa_internet)
+reg2=lm(modelo2,data=data)
+summary(reg2)
+```
+--> La variable tasa internet (es decir, los niños y adolescentes que NO tienen internet) tiene una relación negativa o indirectamente proporcional con la dependiente. Asimismo, le bajo la significancia de lal indice
+
+
+
+# MODELO 3: agregamos tasa internet celular (no)
+
+```{r}
+# indice 1 + tasa ineternet + tasa internet celular
+modelo3=formula(tasa_leer ~ indice_1_cedu + tasa_internet + tasa_celinter)
+reg3=lm(modelo3,data=data)
+summary(reg3)
+```
+--> empeora el modelo 
+
+
+
+# MODELO 4: agragamos electricidad
+
+```{r}
+# indice 1 + tasa ineternet + tasa internet celular + tasa electricida
+modelo4=formula(tasa_leer ~ indice_1_cedu + tasa_internet + tasa_celinter + tasa_elec)
+reg4=lm(modelo4,data=data)
+summary(reg4)
+```
+--> mmmm
+
+
+### Tabla ANOVA
+
+```{r}
+library(magrittr)
+library(knitr)
+#CUIDADO con el orden de la regresión
+tanova=anova(reg1,reg2,reg3,reg4) 
+kable(tanova,
+      caption = "Tabla ANOVA para comparar modelos")%>%kableExtra::kable_styling(full_width = FALSE)
+```
+
+--> las mejores regresiones son: la reg2 y reg4
+
+
+
+# Cluster con PAM y DIANA
+-------------------------------
+
+
+### PAM
+
+```{r}
+## para PAM
+
+library(factoextra)
+fviz_nbclust(dataClus, pam,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F)
+```
+
+- sale 7 
+
+```{r}
+#COLOCAMOS el numero que nos salio antes DONDE esta el 3
+library(kableExtra)
+set.seed(123)
+res.pam=pam(g.dist,7,cluster.only = F)
+
+#nueva columna
+dataClus$pam=res.pam$cluster
+
+# ver
+
+head(dataClus,15)%>%kbl()%>%kable_styling()
+```
+
+```{r}
+fviz_silhouette(res.pam,print.summary = F)
+```
+
+--> medio debil el silhouette 0.23
+
+```{r}
+silPAM=data.frame(res.pam$silinfo$widths)
+silPAM$NOMBPROV=row.names(silPAM)
+poorPAM=silPAM[silPAM$sil_width<0,'NOMBPROV']%>%sort()
+poorPAM
+```
+
+```{r}
+aggregate(.~ pam, data=dataClus,mean)
+```
+
+```{r}
+data$pamSignificativas=data$NOMBPROV%in%poorPAM
+data$pamSignificativas=as.ordered(dataClus$pam)
+dataClus$pam=NULL
+```
+
+
+
+### DIANA
+
+```{r}
+## PARA JERARQUICO
+
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "diana")
+```
+
+```{r}
+# Poner el numero anterior en K
+set.seed(123)
+res.diana <- hcut(g.dist, k = 2,hc_func='diana')
+dataClus$diana=res.diana$cluster
+# veamos
+head(dataClus,15)%>%kbl%>%kable_styling()
+```
+
+```{r}
+fviz_silhouette(res.diana,print.summary = F)
+```
+
+```{r}
+silDIANA=data.frame(res.diana$silinfo$widths)
+silDIANA$NOMBPROV=row.names(silDIANA)
+poorDIANA=silDIANA[silDIANA$sil_width<0,'NOMBPROV']%>%sort()
+poorDIANA
+```
+
+```{r}
+data$dianaSignificantes=data$NOMBPROV%in%poorDIANA
+data$dianaSignificantes=as.ordered(dataClus$diana)
+dataClus$diana=NULL
+```
+
+
+# AGNES 
+
+
+# solo agnes
+
+```{r}
+## PARA JERARQUICO
+
+fviz_nbclust(dataClus, hcut,diss=g.dist,method = "gap_stat",k.max = 10,verbose = F,hc_func = "agnes")
+```
+
+--> sale 1, yo pondré 2
+
+```{r}
+# en la K ponemos el numero que nos salio antes
+set.seed(123)
+library(factoextra)
+
+res.agnes<- hcut(g.dist, k = 3,hc_func='agnes',hc_method = "ward.D")
+
+dataClus$agnes=res.agnes$cluster
+
+# ver
+
+head(dataClus,15)%>%kbl()%>%kable_styling()
+```
+
+```{r}
+fviz_silhouette(res.agnes,print.summary = F)
+```
+
+```{r}
+# Visualize
+fviz_dend(res.agnes, cex = 0.7, horiz = T,main = "")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
